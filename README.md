@@ -114,6 +114,7 @@ Default frontend port:
 
 - Full smoke checklist: [TEST_RUN.md](C:\Users\Karthick C\OneDrive\Desktop\Project\TEST_RUN.md)
 - Release checklist: [RELEASE_CHECKLIST.md](C:\Users\Karthick C\OneDrive\Desktop\Project\RELEASE_CHECKLIST.md)
+- Demo script: [DEMO_SCRIPT.md](C:\Users\Karthick C\OneDrive\Desktop\Project\DEMO_SCRIPT.md)
 
 ## 8) Docker Compose
 
