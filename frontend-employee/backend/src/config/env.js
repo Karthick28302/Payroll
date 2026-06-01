@@ -9,4 +9,5 @@ module.exports = {
   DATABASE_URL: process.env.DATABASE_URL || "",
   JWT_SECRET: process.env.JWT_SECRET || "replace_this_secret",
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "1d",
+  ADMIN_SYNC_KEY: process.env.ADMIN_SYNC_KEY || "change_this_sync_key",
 };

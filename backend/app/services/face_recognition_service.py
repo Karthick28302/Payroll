@@ -1,6 +1,13 @@
 import cv2
-import face_recognition
 from datetime import datetime
+
+try:
+    import face_recognition  # type: ignore
+    FACE_RECOGNITION_AVAILABLE = True
+except BaseException as exc:
+    face_recognition = None
+    FACE_RECOGNITION_AVAILABLE = False
+    _face_import_error = str(exc)
 
 from backend.app.config import LOGOUT_DELAY
 from backend.app.utils.face_utils import load_encodings
@@ -25,6 +32,20 @@ def reload_encodings():
 
 def run_recognition_frame(frame):
     global marked_names, last_seen_time
+
+    # Graceful fallback so camera stream can still run when face-recognition
+    # dependencies are missing on local setup.
+    if not FACE_RECOGNITION_AVAILABLE:
+        cv2.putText(
+            frame,
+            "Face recognition unavailable (dependency missing)",
+            (10, 28),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (0, 0, 255),
+            2,
+        )
+        return frame
 
     small_frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
     rgb = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
@@ -76,3 +97,4 @@ def run_recognition_frame(frame):
                 marked_names.discard(name)
 
     return frame
+

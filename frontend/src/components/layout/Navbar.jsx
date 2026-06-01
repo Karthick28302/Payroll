@@ -25,10 +25,10 @@ const Navbar = () => {
   const dateStr = time.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
 
   return (
-    <header style={s.navbar}>
+    <header style={s.navbar} className="admin-navbar">
 
       {/* ── Left: breadcrumb ── */}
-      <div style={s.breadcrumb}>
+      <div style={s.breadcrumb} className="admin-navbar__breadcrumb">
         <span style={s.breadcrumbRoot}>SmartAttend</span>
         <span style={s.breadcrumbSep}>/</span>
         <span style={s.breadcrumbIcon}>{meta.icon}</span>
@@ -36,15 +36,15 @@ const Navbar = () => {
       </div>
 
       {/* ── Right: clock + status ── */}
-      <div style={s.rightGroup}>
+      <div style={s.rightGroup} className="admin-navbar__right">
         {/* Live indicator */}
-        <div style={s.liveBadge}>
+        <div style={s.liveBadge} className="admin-navbar__live">
           <span style={s.liveDot} />
           <span style={s.liveText}>System Online</span>
         </div>
 
         {/* Clock */}
-        <div style={s.clock}>
+        <div style={s.clock} className="admin-navbar__clock">
           <span style={s.clockTime}>{timeStr}</span>
           <span style={s.clockDate}>{dateStr}</span>
         </div>

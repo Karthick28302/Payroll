@@ -1,13 +1,15 @@
 import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { clearAdminSession } from "../../utils/auth";
 
 const NAV_LINKS = [
-  { to: "/dashboard",  label: "Dashboard",   icon: "▦", desc: "Overview & stats"      },
-  { to: "/monitor",    label: "Live Monitor",icon: "◉", desc: "Camera & recognition"  },
-  { to: "/attendance", label: "Attendance",  icon: "☰", desc: "Records & history"     },
-  { to: "/employees",  label: "Employees",   icon: "◎", desc: "Registered users"      },
-  { to: "/register",   label: "Register",    icon: "⊕", desc: "Add new employee"      },
-  { to: "/reports",    label: "Reports",     icon: "⊟", desc: "Export & analytics"    },
+  { to: "/dashboard", label: "Dashboard", icon: "D", desc: "Overview & stats" },
+  { to: "/monitor", label: "Live Monitor", icon: "L", desc: "Camera & recognition" },
+  { to: "/attendance", label: "Attendance", icon: "A", desc: "Records & history" },
+  { to: "/employees", label: "Employees", icon: "E", desc: "Registered users" },
+  { to: "/register", label: "Register", icon: "R", desc: "Add new employee" },
+  { to: "/cctv", label: "CCTV Setup", icon: "C", desc: "Sources & health" },
+  { to: "/reports", label: "Reports", icon: "P", desc: "Export & analytics" },
 ];
 
 const Sidebar = () => {
@@ -16,7 +18,7 @@ const Sidebar = () => {
   const [collapsed,  setCollapsed] = useState(false);
 
   const logout = () => {
-    localStorage.removeItem("isAdmin");
+    clearAdminSession();
     navigate("/login");
   };
 
@@ -308,3 +310,5 @@ const s = {
     overflow:       "hidden",
   },
 };
+
+

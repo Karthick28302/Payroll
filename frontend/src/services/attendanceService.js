@@ -12,6 +12,11 @@ export async function getAttendanceStats() {
   return res.data;
 }
 
+export async function getAttendanceAnalytics(params = {}) {
+  const res = await API.get("/attendance/analytics", { params });
+  return res.data;
+}
+
 export function exportUrl(params = {}) {
   const qs = new URLSearchParams(params).toString();
   return qs ? `${API_URL}/export?${qs}` : `${API_URL}/export`;

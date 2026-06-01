@@ -1,89 +1,134 @@
-# Smart Attendance System
+# SmartAttend - Final Runbook
 
-Face-recognition attendance tracking with a React frontend and Flask backend.
+This repo contains two apps:
 
-## Setup
+- `frontend` + `backend`: Admin panel for camera monitor, attendance, reports, payroll, and user registration.
+- `frontend-employee` + `frontend-employee/backend`: Employee portal for profile, attendance, salary, events, and holidays.
 
-### 1. Database
-Create schema and seed data:
+## 1) Environment Files
 
-```sql
-mysql -u root -p < database/schema.sql
-mysql -u root -p < database/seed.sql
-```
+Copy the example files before starting:
 
-### 2. Backend
+- [`.env.example`](/C:/Users/Karthick%20C/OneDrive/Desktop/Project/.env.example) for the admin backend.
+- [`frontend/.env.example`](/C:/Users/Karthick%20C/OneDrive/Desktop/Project/frontend/.env.example) for the admin frontend.
+- [`frontend-employee/.env.example`](/C:/Users/Karthick%20C/OneDrive/Desktop/Project/frontend-employee/.env.example) for the employee frontend.
+- [`frontend-employee/backend/.env.example`](/C:/Users/Karthick%20C/OneDrive/Desktop/Project/frontend-employee/backend/.env.example) for the employee backend.
 
-```bash
-cd backend
-python -m venv .venv
-# Windows
-.venv\Scripts\activate
-# Linux/macOS
-source .venv/bin/activate
+## 2) Start Order
 
-pip install -r requirements.txt
-```
+1. Start MySQL for the admin backend.
+2. Start PostgreSQL for the employee backend.
+3. Start the admin backend.
+4. Start the employee backend.
+5. Start the admin frontend.
+6. Start the employee frontend.
 
-Create `backend/.env`:
+## 3) Admin App
 
-```env
-DB_HOST=localhost
-DB_USER=root
-DB_PASSWORD=your_mysql_password
-DB_NAME=attendance_system
-SECRET_KEY=your_long_random_secret
-```
-
-Run backend from project root:
-
-```bash
+### Backend
+```powershell
+cd "C:\Users\Karthick C\OneDrive\Desktop\Project"
 python -m backend.main
 ```
 
-### 3. Frontend
+Default backend port:
+- `5000`
 
-```bash
-cd frontend
-npm install
-npm start
+### Frontend
+```powershell
+cd "C:\Users\Karthick C\OneDrive\Desktop\Project\frontend"
+npm.cmd start
 ```
 
-If needed, create `frontend/.env`:
+Default frontend port:
+- `3000`
 
-```env
-REACT_APP_API_URL=http://127.0.0.1:5000
-```
-
-## Default Admin Login
-
+### Admin login
 - Username: `admin`
 - Password: `admin123`
 
-## API Endpoints
+## 4) Employee App
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/` | Service banner |
-| GET | `/health` | Health check |
-| POST | `/api/login` | Admin login |
-| POST | `/register` | Register new face |
-| GET | `/attendance` | Attendance records (`?from=&to=` optional) |
-| GET | `/attendance/stats` | Today's attendance stats |
-| GET | `/export` | Download Excel report |
-| GET | `/video_feed` | Camera MJPEG stream |
-| GET | `/camera/status` | Camera availability/open state |
-
-## Testing
-
-Run backend smoke tests from project root:
-
-```bash
-python -m pytest backend/tests/test_smoke.py -q
+### Backend
+```powershell
+cd "C:\Users\Karthick C\OneDrive\Desktop\Project\frontend-employee\backend"
+npm.cmd run dev
 ```
 
-## Notes
+Default backend port:
+- `5001`
 
-- Test `GET` routes in browser directly.
-- Test `POST` routes (`/api/login`, `/register`) using Thunder Client or frontend forms.
-- `GET /api/login` returning `405` is expected because login is POST-only.
+### Frontend
+```powershell
+cd "C:\Users\Karthick C\OneDrive\Desktop\Project\frontend-employee"
+npm.cmd start
+```
+
+Default frontend port:
+- `3001` when you want it separate from the admin UI.
+
+### Employee login
+- Identifier: `EMP1001`
+- Password: `Emp@12345`
+
+## 5) Key APIs Implemented
+
+### Admin
+- `POST /api/login`
+- `GET /attendance`
+- `GET /attendance/stats`
+- `GET /video_feed`
+- `GET /camera/status`
+- `POST /camera/release`
+- `GET /camera/sources`
+- `POST /camera/sources`
+- `PUT /camera/sources/<id>`
+- `POST /camera/sources/<id>/activate`
+- `DELETE /camera/sources/<id>`
+- `POST /camera/sources/test`
+- `GET /camera/health-logs`
+- `GET /camera/recordings`
+- `POST /camera/recording/start`
+- `POST /camera/recording/stop`
+- `GET /payroll/summary`
+- `GET /payroll/export`
+- `POST /payroll/mark-paid`
+- `POST /payroll/mark-pending`
+
+### Employee
+- `POST /api/v1/auth/login`
+- `GET /api/v1/me/profile`
+- `GET /api/v1/me/attendance`
+- `GET /api/v1/me/salary`
+- `GET /api/v1/me/events`
+- `GET /api/v1/me/holidays`
+
+## 6) Common Errors
+
+- `EADDRINUSE`: port already in use. Stop previous process and restart.
+- `npm ENOENT package.json`: run command from correct app folder, not repo root.
+- `ECONNREFUSED pg-pool`: employee backend cannot reach Postgres; check `DATABASE_URL`.
+- Camera unavailable on Register: switch source and retry; backend release is built in.
+
+## 7) Validation Docs
+
+- Full smoke checklist: [TEST_RUN.md](C:\Users\Karthick C\OneDrive\Desktop\Project\TEST_RUN.md)
+- Release checklist: [RELEASE_CHECKLIST.md](C:\Users\Karthick C\OneDrive\Desktop\Project\RELEASE_CHECKLIST.md)
+
+## 8) Docker Compose
+
+To start the full stack locally:
+
+```powershell
+cd "C:\Users\Karthick C\OneDrive\Desktop\Project"
+docker compose up --build
+```
+
+Services exposed by default:
+
+- Admin frontend: `http://localhost:3000`
+- Admin backend: `http://localhost:5000`
+- Employee frontend: `http://localhost:3001`
+- Employee backend: `http://localhost:5001`
+- MySQL: `localhost:3306`
+- PostgreSQL: `localhost:5432`

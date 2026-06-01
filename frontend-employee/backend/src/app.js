@@ -13,12 +13,21 @@ const attendanceRoutes = require("./modules/attendance/attendance.routes");
 const salaryRoutes = require("./modules/salary/salary.routes");
 const eventsRoutes = require("./modules/events/events.routes");
 const holidaysRoutes = require("./modules/holidays/holidays.routes");
+const adminRoutes = require("./modules/admin/admin.routes");
 
 const app = express();
+const allowedOrigins = (env.CLIENT_ORIGIN || "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
 
 app.use(
   cors({
-    origin: env.CLIENT_ORIGIN,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
     credentials: true,
   })
 );
@@ -29,6 +38,7 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/admin", adminRoutes);
 
 app.use("/api/v1/me", authMiddleware, roleMiddleware("employee"), employeeRoutes);
 app.use("/api/v1/me", authMiddleware, roleMiddleware("employee"), attendanceRoutes);

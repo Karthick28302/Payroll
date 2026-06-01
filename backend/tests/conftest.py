@@ -1,13 +1,13 @@
 import pytest
 
-from backend.main import create_app
-
 
 @pytest.fixture()
 def client(monkeypatch):
     # Keep config validation satisfied for test startup.
     monkeypatch.setenv("SECRET_KEY", "test-secret")
     monkeypatch.setenv("DB_PASSWORD", "test-password")
+
+    from backend.main import create_app
 
     app = create_app()
     app.config.update(TESTING=True)

@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from werkzeug.security import check_password_hash
 
 from backend.app.models.user_model import get_admin_by_username
+from backend.app.services.auth_service import generate_admin_token
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -29,4 +30,11 @@ def login():
     if not valid:
         return jsonify({"error": "Invalid credentials"}), 401
 
-    return jsonify({"message": "Login successful"})
+    token = generate_admin_token(username)
+    return jsonify({
+        "message": "Login successful",
+        "data": {
+            "token": token,
+            "admin": {"username": username, "role": "admin"},
+        },
+    })

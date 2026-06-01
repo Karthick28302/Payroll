@@ -1,9 +1,7 @@
-version: '3.8'
-
 services:
-  db:
+  mysql:
     image: mysql:8.0
-    restart: always
+    restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
       MYSQL_DATABASE: attendance_system
@@ -13,30 +11,91 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./backend/setup.sql:/docker-entrypoint-initdb.d/setup.sql
+      - ./backend/setup.sql:/docker-entrypoint-initdb.d/setup.sql:ro
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: employee_portal
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
   backend:
-    build: ./backend
-    restart: always
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - mysql
+      - employee-backend
+    environment:
+      DB_HOST: mysql
+      DB_USER: attendance_user
+      DB_PASSWORD: attendance_pass
+      DB_NAME: attendance_system
+      SECRET_KEY: change_this_to_a_random_secret
+      EMPLOYEE_SYNC_URL: http://employee-backend:5001/api/v1/admin/sync-employee
+      EMPLOYEE_SYNC_KEY: change_this_sync_key
+      DEFAULT_EMPLOYEE_PASSWORD: Emp@12345
     ports:
       - "5000:5000"
-    depends_on:
-      - db
-    environment:
-      - DATABASE_URL=mysql+pymysql://attendance_user:attendance_pass@db:3306/attendance_system
     volumes:
-      - ./backend/dataset:/app/dataset
-      - ./backend/encodings:/app/encodings
-    devices:
-      - /dev/video0:/dev/video0  # Linux webcam
+      - ./backend/dataset:/app/backend/dataset
+      - ./backend/encodings:/app/backend/encodings
 
   frontend:
-    build: ./frontend
-    restart: always
-    ports:
-      - "3000:3000"
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    restart: unless-stopped
     depends_on:
       - backend
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      CHOKIDAR_USEPOLLING: "true"
+      REACT_APP_API_URL: http://localhost:5000
+    ports:
+      - "3000:3000"
+
+  employee-backend:
+    build:
+      context: .
+      dockerfile: frontend-employee/backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      NODE_ENV: development
+      PORT: 5001
+      CLIENT_ORIGIN: http://localhost:3001,http://localhost:3000
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/employee_portal
+      JWT_SECRET: change_this_secret
+      JWT_EXPIRES_IN: 1d
+      ADMIN_SYNC_KEY: change_this_sync_key
+    ports:
+      - "5001:5001"
+
+  employee-frontend:
+    build:
+      context: .
+      dockerfile: frontend-employee/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - employee-backend
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3001
+      CHOKIDAR_USEPOLLING: "true"
+      REACT_APP_EMPLOYEE_API_URL: http://localhost:5001/api/v1
+    ports:
+      - "3001:3001"
 
 volumes:
   mysql_data:
+  postgres_data:

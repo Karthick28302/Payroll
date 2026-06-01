@@ -23,7 +23,6 @@ const run = async () => {
   ];
 
   const seedFiles = [
-    "seeds/seed_employees.sql",
     "seeds/seed_events.sql",
   ];
 

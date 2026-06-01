@@ -1,4 +1,4 @@
-# Python
+# ── Python ──────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *.pyo
@@ -10,47 +10,30 @@ build/
 .venv/
 venv/
 env/
-.pytest_cache/
 
-# Environment / secrets
+# ── Environment / secrets ───────────────────────────────
 .env
 *.env
-!.env.example
 
-# Face recognition data
+# ── Face recognition data (large binary files) ──────────
 backend/encodings/*.pkl
 backend/dataset/
 backend/datasets/
 
-# Generated exports
+# ── Generated exports ───────────────────────────────────
 backend/attendance.xlsx
 *.xlsx
 
-# Node / React
+# ── Node / React ─────────────────────────────────────────
 frontend/node_modules/
 frontend/build/
-frontend/.env
+frontend/.env          # keep .env.example, ignore the real one
 
-# IDE / OS
+# ── IDE / OS ─────────────────────────────────────────────
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
 
-# Database migrations outputs
+# ── Database migrations (keep folder, ignore auto-generated) ─
 database/migrations/*.sql
-
-backend/app/services/venv310/
-backend/venv/
-.venv/
-venv/
-
-backend/app/services/venv310/
-backend/venv/
-.venv/
-venv/
-
-backend/app/services/venv310/
-*.dat
-
-Project/

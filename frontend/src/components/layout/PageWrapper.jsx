@@ -70,7 +70,7 @@ const s = {
   content: {
     flex:      1,
     width:     "100%",
-    animation: "fadeUp 0.35s ease both",
+    animation: "fadeInUp var(--dur-slow) var(--ease-out) both",
   },
   header: {
     display:        "flex",

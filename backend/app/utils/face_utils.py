@@ -50,3 +50,8 @@ def remove_encodings_for_name(name: str):
             kept_names.append(n)
 
     save_encodings({"encodings": kept_encodings, "names": kept_names})
+
+
+def clear_all_encodings():
+    """Remove every saved face encoding from disk."""
+    save_encodings({"encodings": [], "names": []})

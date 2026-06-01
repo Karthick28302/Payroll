@@ -1,11 +1,12 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import useAuth            from "../hooks/useAuth";
 import useAttendance      from "../hooks/useAttendance";
 import { formatDateTime } from "../utils/formatDate";
 import { calcDuration, durationColor } from "../utils/calcDuration";
-import { videoFeedUrl }   from "../services/cameraService";
+import { getCameraStatus, videoFeedUrl }   from "../services/cameraService";
 import { exportUrl }      from "../services/attendanceService";
 import PageWrapper        from "../components/layout/PageWrapper";
+import "../styles/dashboard.css";
 
 /* ── Stat card ── */
 const StatCard = ({ label, value, color, icon, delay = 0 }) => (
@@ -21,8 +22,44 @@ const StatCard = ({ label, value, color, icon, delay = 0 }) => (
 
 /* ── Camera feed ── */
 const CameraPanel = () => {
-  const [status,    setStatus]   = useState("connecting");
-  const [retryKey,  setRetry]    = useState(0);
+  const [status, setStatus] = useState("connecting");
+  const [feedNonce, setFeedNonce] = useState(() => Date.now());
+  const [statusMeta, setStatusMeta] = useState(null);
+  const retryAttemptsRef = useRef(0);
+  const retryTimerRef = useRef(null);
+
+  const loadStatus = async () => {
+    try {
+      const info = await getCameraStatus();
+      setStatusMeta(info || null);
+    } catch {
+      // status endpoint best effort
+    }
+  };
+
+  useEffect(() => {
+    loadStatus();
+    const interval = setInterval(loadStatus, 5000);
+    return () => {
+      clearInterval(interval);
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+      }
+    };
+  }, []);
+
+  const scheduleRetry = () => {
+    retryAttemptsRef.current += 1;
+    const delay = Math.min(1000 * (2 ** (retryAttemptsRef.current - 1)), 8000);
+    setStatus("reconnecting");
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+    }
+    retryTimerRef.current = setTimeout(() => {
+      setFeedNonce(Date.now());
+      setStatus("connecting");
+    }, delay);
+  };
 
   return (
     <div style={s.cameraWrap}>
@@ -36,15 +73,27 @@ const CameraPanel = () => {
           boxShadow: status === "live" ? "0 0 7px var(--accent)" : "none",
         }} />
         <span style={s.statusText}>
-          {status === "live" ? "Live" : status === "error" ? "Disconnected" : "Connecting..."}
+          {status === "live" ? "Connected"
+            : status === "reconnecting" ? "Reconnecting..."
+            : status === "error" ? "Disconnected"
+            : "Connecting..."}
         </span>
         {status === "error" && (
           <button style={s.retryBtn}
-            onClick={() => { setStatus("connecting"); setRetry(k => k + 1); }}>
+              onClick={() => {
+                retryAttemptsRef.current = 0;
+                setStatus("connecting");
+                setFeedNonce(Date.now());
+              }}>
             Retry
           </button>
         )}
       </div>
+      {statusMeta ? (
+        <div style={s.sourcePill}>
+          {(statusMeta.fallback_in_use ? "Fallback" : "Primary")} · {statusMeta.current_stream_source || statusMeta.active_source || "unknown"}
+        </div>
+      ) : null}
 
       {/* Placeholder */}
       {status !== "live" && status !== "error" && (
@@ -77,12 +126,32 @@ const CameraPanel = () => {
 
       {/* Stream */}
       <img
-        key={retryKey}
-        src={videoFeedUrl()}
+        key={feedNonce}
+        src={videoFeedUrl({
+          view: "dashboard",
+          fps: 20,
+          quality: 75,
+          scale: 0.75,
+          process_every: 2,
+          cache_bust: feedNonce,
+        })}
         alt="Live feed"
-        style={{ ...s.cameraImg, display: status === "live" ? "block" : "none" }}
-        onLoad={()  => setStatus("live")}
-        onError={() => setStatus("error")}
+        style={{
+          ...s.cameraImg,
+          display: "block",
+          opacity: status === "live" ? 1 : 0.78,
+        }}
+        onLoad={()  => {
+          retryAttemptsRef.current = 0;
+          setStatus("live");
+        }}
+        onError={() => {
+          if (retryAttemptsRef.current >= 4) {
+            setStatus("error");
+          } else {
+            scheduleRetry();
+          }
+        }}
       />
 
       {/* Corner brackets */}
@@ -110,7 +179,14 @@ const CameraPanel = () => {
 const Dashboard = () => {
   useAuth();
 
-  const { records, stats, loading, error, refresh } = useAttendance({ interval: 5000 });
+  const attendanceState = useAttendance({ interval: 5000 }) || {};
+  const {
+    records = [],
+    stats = { total_today: 0, currently_present: 0 },
+    loading = false,
+    error = null,
+    refresh = () => {},
+  } = attendanceState;
 
   const total   = new Set(records.map((r) => r.name)).size;
   const present = stats.currently_present ?? 0;
@@ -132,7 +208,7 @@ const Dashboard = () => {
     >
 
       {/* ── Stat cards ── */}
-      <div style={s.statsGrid} className="stagger">
+      <div style={s.statsGrid} className="stagger animate-stagger">
         <StatCard label="Total Employees"   value={total}   color="var(--info)"    icon="◎" delay={0}   />
         <StatCard label="Currently Present" value={present} color="var(--accent)"  icon="◉" delay={60}  />
         <StatCard label="Absent Today"      value={absent}  color="var(--danger)"  icon="○" delay={120} />
@@ -140,10 +216,10 @@ const Dashboard = () => {
       </div>
 
       {/* ── Two-col grid ── */}
-      <div style={s.twoCol}>
+      <div style={s.twoCol} className="dashboard-grid">
 
         {/* Camera */}
-        <div style={s.card}>
+        <div style={s.card} className="hover-lift">
           <div style={s.cardHead}>
             <span style={s.cardHeadTitle}>Live Camera Feed</span>
             <span style={s.cardHeadBadge}>Port 5000</span>
@@ -152,12 +228,12 @@ const Dashboard = () => {
         </div>
 
         {/* Recent activity */}
-        <div style={s.card}>
+        <div style={s.card} className="hover-lift">
           <div style={s.cardHead}>
             <span style={s.cardHeadTitle}>Recent Activity</span>
             <span style={s.cardHeadMeta}>Last 6 entries</span>
           </div>
-          <div style={s.activityList}>
+          <div style={s.activityList} className="animate-stagger">
             {loading ? (
               <div style={{ padding: "30px", textAlign: "center" }}>
                 <div style={s.spinner} />
@@ -220,7 +296,7 @@ const Dashboard = () => {
             <div style={s.spinner} />
           </div>
         ) : records.length > 0 ? (
-          <table style={s.table}>
+          <table style={s.table} className="animate-stagger">
             <thead>
               <tr style={{ borderBottom: "1px solid var(--border)" }}>
                 {["#", "Employee", "Login Time", "Logout Time", "Duration", "Status"].map((h) => (
@@ -376,9 +452,6 @@ const s = {
     position:       "relative",
     background:     "#020810",
     minHeight:      "320px",
-    display:        "flex",
-    alignItems:     "center",
-    justifyContent: "center",
     overflow:       "hidden",
   },
   statusPill: {
@@ -408,6 +481,31 @@ const s = {
     fontSize:   "11px",
     color:      "var(--text-secondary)",
   },
+  sourcePill: {
+    position:       "absolute",
+    top:            "44px",
+    left:           "50%",
+    transform:      "translateX(-50%)",
+    fontFamily:     "var(--font-mono)",
+    fontSize:       "10px",
+    color:          "var(--text-muted)",
+    background:     "rgba(0,0,0,0.58)",
+    border:         "1px solid var(--border)",
+    borderRadius:   "var(--r-pill)",
+    padding:        "3px 10px",
+    zIndex:         10,
+    whiteSpace:     "nowrap",
+  },
+  sourceSwitch: {
+    position:       "absolute",
+    bottom:         "12px",
+    right:          "12px",
+    display:        "flex",
+    gap:            "8px",
+    zIndex:         6,
+    flexWrap:       "wrap",
+    justifyContent: "flex-end",
+  },
   retryBtn: {
     background:   "var(--danger-dim)",
     color:        "var(--danger)",
@@ -419,13 +517,14 @@ const s = {
     fontFamily:   "var(--font-body)",
   },
   cameraPlaceholder: {
-    width:          "100%",
-    height:         "320px",
+    position:       "absolute",
+    inset:          0,
     display:        "flex",
     alignItems:     "center",
     justifyContent: "center",
-    position:       "relative",
     overflow:       "hidden",
+    pointerEvents:  "none",
+    zIndex:         2,
   },
   scanLine: {
     position:   "absolute",
@@ -452,10 +551,10 @@ const s = {
   },
   cameraImg: {
     width:      "100%",
-    height:     "100%",
+    minHeight:  "320px",
     objectFit:  "cover",
     display:    "block",
-    minHeight:  "320px",
+    imageRendering: "auto",
   },
   livePill: {
     position:       "absolute",
@@ -491,6 +590,7 @@ const s = {
   activityList: {
     display:       "flex",
     flexDirection: "column",
+    minHeight:     "320px",
   },
   activityItem: {
     display:    "flex",

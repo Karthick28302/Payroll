@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import useAuth            from "../hooks/useAuth";
-import { registerFace }   from "../services/userService";
+import { registerFace, retryEmployeeSync }   from "../services/userService";
+import { releaseBackendCamera, videoFeedUrl } from "../services/cameraService";
 import PageWrapper        from "../components/layout/PageWrapper";
 
 /* ── Tip card ── */
@@ -58,9 +59,20 @@ const RegisterUser = () => {
   useAuth();
 
   const [name,        setName]        = useState("");
+  const [employeeCode, setEmployeeCode] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [department, setDepartment] = useState("");
+  const [designation, setDesignation] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
   const [loading,     setLoading]     = useState(false);
   const [message,     setMessage]     = useState(null);
   const [error,       setError]       = useState(null);
+  const [syncWarning, setSyncWarning] = useState(null);
+  const [lastSyncPayload, setLastSyncPayload] = useState(null);
+  const [syncDetails, setSyncDetails] = useState(null);
+  const [retryingSync, setRetryingSync] = useState(false);
   const [camStatus,   setCamStatus]   = useState("loading"); // loading | live | error
   const [streamKey,   setStreamKey]   = useState(0);
   const [useWebcam,   setUseWebcam]   = useState(true);     // true = browser webcam, false = backend stream
@@ -72,9 +84,27 @@ const RegisterUser = () => {
 
   /* Browser webcam */
   useEffect(() => {
-    if (!useWebcam) return;
-    startWebcam();
-    return () => stopWebcam();
+    const setup = async () => {
+      if (!useWebcam) {
+        stopWebcam();
+        setCamStatus("loading");
+        return;
+      }
+
+      // Release backend camera lock before opening browser webcam.
+      try {
+        await releaseBackendCamera();
+      } catch {
+        // Ignore release errors; browser webcam may still open.
+      }
+      startWebcam();
+    };
+
+    setup();
+    return () => {
+      stopWebcam();
+      Promise.resolve(releaseBackendCamera?.()).catch(() => {});
+    };
   }, [useWebcam]);
 
   const startWebcam = async () => {
@@ -95,10 +125,75 @@ const RegisterUser = () => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
   };
 
-  const retryCamera = () => {
+  const retryCamera = async () => {
     setCamStatus("loading");
     setStreamKey((k) => k + 1);
-    if (useWebcam) startWebcam();
+    if (useWebcam) {
+      try {
+        await releaseBackendCamera();
+      } catch {
+        // continue best effort
+      }
+      startWebcam();
+    }
+  };
+
+  const handleRetrySync = async () => {
+    if (!lastSyncPayload) {
+      return;
+    }
+
+    setRetryingSync(true);
+    setError(null);
+    try {
+      const data = await retryEmployeeSync(lastSyncPayload);
+      const syncInfo = data?.employee_sync;
+      if (syncInfo?.status === "ok") {
+        const registration = data?.registration || {};
+        const temporaryPassword = registration?.temporaryPassword || syncInfo?.temporaryPassword || syncInfo?.payload?.password || "";
+        setSyncDetails({
+          userId: registration?.userId || syncInfo?.userId || "",
+          employeeCode: registration?.employeeCode || syncInfo?.employeeCode || syncInfo?.payload?.employeeCode || "",
+          email: registration?.email || syncInfo?.email || syncInfo?.payload?.email || "",
+          role: registration?.role || syncInfo?.role || "employee",
+          department: registration?.department || syncInfo?.department || "",
+          temporaryPassword,
+          passwordGenerated: Boolean(registration?.passwordGenerated ?? syncInfo?.passwordGenerated),
+        });
+        setMessage(
+          `${data.message || "Employee sync completed."} Employee login synced: ${syncInfo.employeeCode} / ${syncInfo.email}`
+        );
+        setSyncWarning(null);
+        setLastSyncPayload(null);
+      } else {
+        setSyncWarning(`Employee login sync failed: ${syncInfo?.reason || "Unknown sync error"}`);
+        setLastSyncPayload(syncInfo?.payload || lastSyncPayload);
+      }
+    } catch (err) {
+      setSyncWarning(err?.response?.data?.error || err?.response?.data?.message || "Retry sync failed.");
+    } finally {
+      setRetryingSync(false);
+    }
+  };
+
+  const handleCopySyncDetails = async () => {
+    if (!syncDetails) return;
+
+    const lines = [
+      `User ID: ${syncDetails.userId || "—"}`,
+      `Employee Code: ${syncDetails.employeeCode || "—"}`,
+      `Email: ${syncDetails.email || "—"}`,
+      `Role: ${syncDetails.role || "employee"}`,
+      `Department: ${syncDetails.department || "—"}`,
+      `Temporary Password: ${syncDetails.temporaryPassword || "—"}`,
+    ];
+
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"));
+      setMessage("Employee login details copied to clipboard.");
+    } catch {
+      setSyncWarning("Copy to clipboard failed. You can still read the details on screen.");
+    }
   };
 
   /* Derive step */
@@ -108,7 +203,7 @@ const RegisterUser = () => {
   const captureAndRegister = async () => {
     if (!name.trim()) { setError("Please enter a name"); return; }
     if (camStatus !== "live") { setError("Camera is not ready yet."); return; }
-    setLoading(true); setError(null); setMessage(null);
+    setLoading(true); setError(null); setMessage(null); setSyncWarning(null); setLastSyncPayload(null); setSyncDetails(null);
 
     let image;
     if (useWebcam) {
@@ -128,9 +223,72 @@ const RegisterUser = () => {
     }
 
     try {
-      const data = await registerFace(name.trim().toLowerCase(), image);
-      setMessage(data.message || "User registered successfully.");
+      const data = await registerFace(name.trim().toLowerCase(), image, {
+        employeeCode,
+        email,
+        password,
+        department,
+        designation,
+        phone,
+        address,
+      });
+      const registration = data?.registration || {};
+      const syncInfo = data?.employee_sync;
+      if (syncInfo?.status === "ok") {
+        const temporaryPassword = registration?.temporaryPassword || syncInfo?.temporaryPassword || syncInfo?.payload?.password || "";
+        setSyncDetails({
+          userId: registration?.userId || syncInfo?.userId || "",
+          employeeCode: registration?.employeeCode || syncInfo?.employeeCode || syncInfo?.payload?.employeeCode || "",
+          email: registration?.email || syncInfo?.email || syncInfo?.payload?.email || "",
+          role: registration?.role || syncInfo?.role || "employee",
+          department: registration?.department || syncInfo?.department || "",
+          temporaryPassword,
+          passwordGenerated: Boolean(registration?.passwordGenerated ?? syncInfo?.passwordGenerated),
+        });
+        setMessage(
+          `${data.message || "User registered successfully."} Employee login synced: ${syncInfo.employeeCode} / ${syncInfo.email}`
+        );
+        setSyncWarning(null);
+        setLastSyncPayload(null);
+      } else if (syncInfo?.status === "failed") {
+        const temporaryPassword = registration?.temporaryPassword || syncInfo?.temporaryPassword || syncInfo?.payload?.password || "";
+        setSyncDetails({
+          userId: registration?.userId || syncInfo?.userId || "",
+          employeeCode: registration?.employeeCode || syncInfo?.employeeCode || syncInfo?.payload?.employeeCode || "",
+          email: registration?.email || syncInfo?.email || syncInfo?.payload?.email || "",
+          role: registration?.role || syncInfo?.role || "employee",
+          department: registration?.department || syncInfo?.department || "",
+          temporaryPassword,
+          passwordGenerated: Boolean(registration?.passwordGenerated ?? syncInfo?.passwordGenerated),
+        });
+        setMessage(data.message || "User registered.");
+        setSyncWarning(`Employee login sync failed: ${syncInfo.reason}`);
+        setLastSyncPayload({
+          ...(syncInfo?.payload || {}),
+          userId: registration?.userId || syncInfo?.userId || "",
+          name: name.trim().toLowerCase(),
+          employeeCode,
+          email,
+          password,
+          department,
+          designation,
+          phone,
+          address,
+        });
+      } else {
+        setSyncDetails(null);
+        setMessage(data.message || "User registered successfully.");
+        setSyncWarning(null);
+        setLastSyncPayload(null);
+      }
       setName("");
+      setEmployeeCode("");
+      setEmail("");
+      setPassword("");
+      setDepartment("");
+      setDesignation("");
+      setPhone("");
+      setAddress("");
     } catch (err) {
       setError(err?.response?.data?.error || "Could not connect to backend.");
     } finally {
@@ -235,7 +393,7 @@ const RegisterUser = () => {
               <img
                 key={streamKey}
                 ref={imgRef}
-                src={`http://127.0.0.1:5000/video_feed?v=${streamKey}`}
+                src={videoFeedUrl(`view=register&v=${streamKey}`)}
                 alt="camera"
                 style={{ ...s.cameraMedia, display: camStatus === "live" ? "block" : "none" }}
                 onLoad={()  => setCamStatus("live")}
@@ -284,6 +442,94 @@ const RegisterUser = () => {
               </p>
             </div>
 
+            <div style={s.twoCol}>
+              <div style={s.fieldGroup}>
+                <label style={s.fieldLabel}>Employee Code (optional)</label>
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="e.g. EMP1201"
+                  value={employeeCode}
+                  onChange={(e) => setEmployeeCode(e.target.value.toUpperCase())}
+                  disabled={loading}
+                />
+              </div>
+              <div style={s.fieldGroup}>
+                <label style={s.fieldLabel}>Employee Email (optional)</label>
+                <input
+                  className="input"
+                  type="email"
+                  placeholder="e.g. name@company.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+            </div>
+
+            <div style={s.twoCol}>
+              <div style={s.fieldGroup}>
+                <label style={s.fieldLabel}>Login Password (optional)</label>
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="Default: Emp@12345"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={loading}
+                />
+                <p style={s.fieldHint}>If provided: 8+ chars with uppercase, lowercase, number, special character.</p>
+              </div>
+              <div style={s.fieldGroup}>
+                <label style={s.fieldLabel}>Department (optional)</label>
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="e.g. Engineering"
+                  value={department}
+                  onChange={(e) => setDepartment(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+            </div>
+
+            <div style={s.twoCol}>
+              <div style={s.fieldGroup}>
+                <label style={s.fieldLabel}>Designation (optional)</label>
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="e.g. Software Engineer"
+                  value={designation}
+                  onChange={(e) => setDesignation(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+              <div style={s.fieldGroup}>
+                <label style={s.fieldLabel}>Phone (optional)</label>
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="e.g. 9876543210"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+            </div>
+
+            <div style={s.fieldGroup}>
+              <label style={s.fieldLabel}>Address (optional)</label>
+              <input
+                className="input"
+                type="text"
+                placeholder="e.g. Chennai"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+
             {/* Feedback */}
             {message && (
               <div style={s.successBox}>
@@ -296,14 +542,74 @@ const RegisterUser = () => {
             )}
             {error && (
               <div style={s.errorBox}>
-                <span style={s.errorIcon}>⚠</span>
+                <span style={s.errorIcon}>!</span>
                 <div>
                   <p style={s.errorTitle}>Registration failed</p>
                   <p style={s.errorDesc}>{error}</p>
                 </div>
               </div>
             )}
-
+            {syncWarning && (
+              <div style={s.errorBox}>
+                <span style={s.errorIcon}>⚠</span>
+                <div style={{ flex: 1 }}>
+                  <p style={s.errorTitle}>Sync warning</p>
+                  <p style={s.errorDesc}>{syncWarning}</p>
+                  {lastSyncPayload && (
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      type="button"
+                      onClick={handleRetrySync}
+                      disabled={retryingSync}
+                      style={{ marginTop: "10px" }}
+                    >
+                      {retryingSync ? "Retrying..." : "Retry Sync"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+            {syncDetails && (
+              <div style={s.syncBox}>
+                <div style={s.syncHead}>
+                  <p style={s.syncTitle}>Employee login ready</p>
+                  <button className="btn btn-secondary btn-sm" type="button" onClick={handleCopySyncDetails}>
+                    Copy Details
+                  </button>
+                </div>
+                <div style={s.syncGrid}>
+                  <div>
+                    <span style={s.syncLabel}>User ID</span>
+                    <p style={s.syncValue}>{syncDetails.userId || "—"}</p>
+                  </div>
+                  <div>
+                    <span style={s.syncLabel}>Employee Code</span>
+                    <p style={s.syncValue}>{syncDetails.employeeCode || "—"}</p>
+                  </div>
+                  <div>
+                    <span style={s.syncLabel}>Email</span>
+                    <p style={s.syncValue}>{syncDetails.email || "—"}</p>
+                  </div>
+                  <div>
+                    <span style={s.syncLabel}>Role</span>
+                    <p style={s.syncValue}>{syncDetails.role || "employee"}</p>
+                  </div>
+                  <div>
+                    <span style={s.syncLabel}>Department</span>
+                    <p style={s.syncValue}>{syncDetails.department || "—"}</p>
+                  </div>
+                  <div>
+                    <span style={s.syncLabel}>New Password</span>
+                    <p style={s.syncValue}>{syncDetails.temporaryPassword || "—"}</p>
+                  </div>
+                </div>
+                <p style={s.syncNote}>
+                  {syncDetails.passwordGenerated
+                    ? "A temporary password was generated and synced to the employee account."
+                    : "The password you entered was synced to the employee account."}
+                </p>
+              </div>
+            )}
             {/* Submit */}
             <button
               style={{ ...s.submitBtn, opacity: loading || camStatus !== "live" ? 0.6 : 1 }}
@@ -562,6 +868,11 @@ const s = {
     flexDirection: "column",
     gap:           "5px",
   },
+  twoCol: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: "10px",
+  },
   fieldLabel: {
     fontFamily:    "var(--font-display)",
     fontSize:      "11px",
@@ -639,6 +950,51 @@ const s = {
   errorDesc: {
     fontSize: "12px",
     color:    "var(--text-secondary)",
+  },
+
+  syncBox: {
+    display: "grid",
+    gap: "10px",
+    padding: "14px 16px",
+    background: "var(--surface-2)",
+    border: "1px solid var(--border)",
+    borderRadius: "var(--r-md)",
+  },
+  syncHead: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "10px",
+    flexWrap: "wrap",
+  },
+  syncTitle: {
+    fontSize: "13px",
+    fontWeight: "700",
+    color: "var(--text-primary)",
+  },
+  syncGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+    gap: "10px",
+  },
+  syncLabel: {
+    display: "block",
+    fontSize: "11px",
+    color: "var(--text-muted)",
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+    marginBottom: "4px",
+  },
+  syncValue: {
+    fontFamily: "var(--font-mono)",
+    fontSize: "12px",
+    color: "var(--text-primary)",
+    wordBreak: "break-word",
+  },
+  syncNote: {
+    fontSize: "12px",
+    color: "var(--text-muted)",
+    margin: 0,
   },
 
   /* Submit */
@@ -755,3 +1111,6 @@ const s = {
     lineHeight:1.5,
   },
 };
+
+
+

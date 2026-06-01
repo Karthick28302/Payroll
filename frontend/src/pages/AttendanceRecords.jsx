@@ -4,6 +4,7 @@ import useAttendance from "../hooks/useAttendance";
 import { formatDateTime, todayISO } from "../utils/formatDate";
 import { calcDuration } from "../utils/calcDuration";
 import { exportUrl } from "../services/attendanceService";
+import PageWrapper from "../components/layout/PageWrapper";
 
 function AttendanceRecords() {
   useAuth();
@@ -13,11 +14,17 @@ function AttendanceRecords() {
   const [search, setSearch] = useState("");
   const [applied, setApplied] = useState({ from: null, to: null });
 
-  const { records, loading, error, refresh } = useAttendance({
+  const attendanceState = useAttendance({
     from: applied.from,
     to: applied.to,
     interval: 0,
-  });
+  }) || {};
+  const {
+    records = [],
+    loading = false,
+    error = null,
+    refresh = () => {},
+  } = attendanceState;
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -50,241 +57,210 @@ function AttendanceRecords() {
   };
 
   return (
-    <div style={styles.page}>
-      <h1 style={styles.heading}>Attendance Records</h1>
-
-      <div style={styles.statsGrid}>
+    <PageWrapper
+      title="Attendance Records"
+      subtitle="Attendance history and filters"
+      actions={
+        <button className="btn btn-secondary btn-sm" onClick={refresh} disabled={loading}>
+          Refresh
+        </button>
+      }
+    >
+      <div style={s.statsGrid}>
         <StatCard label="Total Records" value={totals.total} />
         <StatCard label="Currently In" value={totals.present} />
         <StatCard label="Left Today" value={totals.offline} />
         <StatCard label="Employees" value={totals.employees} />
       </div>
 
-      <div style={styles.toolbar}>
+      <div style={s.toolbar}>
         <input
+          className="input"
           type="text"
           placeholder="Search by employee name..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={styles.input}
+          style={s.search}
         />
 
-        <input
-          type="date"
-          value={fromDate}
-          max={todayISO()}
-          onChange={(e) => setFromDate(e.target.value)}
-          style={styles.input}
-        />
+        <input className="input" type="date" value={fromDate} max={todayISO()} onChange={(e) => setFromDate(e.target.value)} />
+        <input className="input" type="date" value={toDate} max={todayISO()} onChange={(e) => setToDate(e.target.value)} />
 
-        <input
-          type="date"
-          value={toDate}
-          max={todayISO()}
-          onChange={(e) => setToDate(e.target.value)}
-          style={styles.input}
-        />
-
-        <button style={styles.btnPrimary} onClick={handleApply}>
-          Apply
-        </button>
-
-        <button style={styles.btnSecondary} onClick={handleClear}>
-          Clear
-        </button>
-
-        <button style={styles.btnSecondary} onClick={refresh} disabled={loading}>
-          Refresh
-        </button>
-
-        <button style={styles.btnPrimary} onClick={handleExport}>
-          Export Excel
-        </button>
+        <button className="btn btn-primary btn-sm" onClick={handleApply}>Apply</button>
+        <button className="btn btn-secondary btn-sm" onClick={handleClear}>Clear</button>
+        <button className="btn btn-secondary btn-sm" onClick={refresh} disabled={loading}>Refresh</button>
+        <button className="btn btn-primary btn-sm" onClick={handleExport}>Export Excel</button>
       </div>
 
-      <div style={styles.card}>
-        {error ? <p style={styles.error}>{error}</p> : null}
+      <div style={s.card}>
+        {error ? <div style={s.errorBox}>{error}</div> : null}
 
         {loading ? (
-          <p style={styles.muted}>Loading attendance records...</p>
+          <div style={s.empty}>Loading attendance records...</div>
         ) : filtered.length === 0 ? (
-          <p style={styles.muted}>No attendance records found.</p>
+          <div style={s.empty}>No attendance records found.</div>
         ) : (
-          <table style={styles.table}>
-            <thead style={styles.thead}>
-              <tr>
-                <th style={styles.th}>#</th>
-                <th style={styles.th}>Employee</th>
-                <th style={styles.th}>Login Time</th>
-                <th style={styles.th}>Logout Time</th>
-                <th style={styles.th}>Duration</th>
-                <th style={styles.th}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((r, i) => {
-                const status = r.logout_time ? "Offline" : "Present";
-                return (
-                  <tr key={i} style={styles.row}>
-                    <td style={styles.td}>{i + 1}</td>
-                    <td style={{ ...styles.td, textTransform: "capitalize", fontWeight: 600 }}>
-                      {r.name || "-"}
-                    </td>
-                    <td style={styles.td}>{formatDateTime(r.login_time)}</td>
-                    <td style={styles.td}>{formatDateTime(r.logout_time)}</td>
-                    <td style={styles.td}>{r.duration || calcDuration(r.login_time, r.logout_time)}</td>
-                    <td style={styles.td}>
-                      <span
-                        style={{
-                          ...styles.badge,
-                          ...(status === "Present" ? styles.badgeSuccess : styles.badgeDanger),
-                        }}
-                      >
-                        {status}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div style={s.tableWrap}>
+            <table style={s.table}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                  <th style={s.th}>#</th>
+                  <th style={s.th}>Employee</th>
+                  <th style={s.th}>Login Time</th>
+                  <th style={s.th}>Logout Time</th>
+                  <th style={s.th}>Duration</th>
+                  <th style={s.th}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((r, i) => {
+                  const status = r.logout_time ? "Offline" : "Present";
+                  return (
+                    <tr key={i} style={s.row}>
+                      <td style={s.td}>{i + 1}</td>
+                      <td style={{ ...s.td, textTransform: "capitalize", fontWeight: 600, color: "var(--text-primary)" }}>
+                        {r.name || "-"}
+                      </td>
+                      <td style={{ ...s.td, ...s.mono }}>{formatDateTime(r.login_time)}</td>
+                      <td style={{ ...s.td, ...s.mono }}>{formatDateTime(r.logout_time)}</td>
+                      <td style={{ ...s.td, ...s.mono }}>{r.duration || calcDuration(r.login_time, r.logout_time)}</td>
+                      <td style={s.td}>
+                        <span style={{ ...s.badge, ...(status === "Present" ? s.badgeSuccess : s.badgeDanger) }}>
+                          {status}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
-    </div>
+    </PageWrapper>
   );
 }
 
 function StatCard({ label, value }) {
   return (
-    <div style={styles.statCard}>
-      <p style={styles.statLabel}>{label}</p>
-      <p style={styles.statValue}>{value}</p>
+    <div style={s.statCard}>
+      <p style={s.statLabel}>{label}</p>
+      <p style={s.statValue}>{value}</p>
     </div>
   );
 }
 
 export default AttendanceRecords;
 
-const styles = {
-  page: {
-    padding: "30px",
-    background: "#f4f6f9",
-    minHeight: "100vh",
-  },
-  heading: {
-    margin: "0 0 20px",
-    color: "#1e293b",
-    fontSize: "22px",
-    fontWeight: 600,
-  },
+const s = {
   statsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
     gap: "12px",
-    marginBottom: "20px",
   },
   statCard: {
-    background: "#fff",
-    borderRadius: "12px",
-    padding: "14px 16px",
-    boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
+    background: "var(--surface-1)",
+    border: "1px solid var(--border)",
+    borderRadius: "var(--r-lg)",
+    padding: "16px 18px",
   },
   statLabel: {
     margin: 0,
-    color: "#64748b",
-    fontSize: "13px",
+    color: "var(--text-muted)",
+    fontFamily: "var(--font-display)",
+    fontSize: "11px",
+    textTransform: "uppercase",
+    letterSpacing: "0.07em",
+    fontWeight: 600,
   },
   statValue: {
     margin: "8px 0 0",
-    color: "#0f172a",
-    fontSize: "24px",
-    fontWeight: 700,
+    color: "var(--text-primary)",
+    fontSize: "36px",
+    fontWeight: 800,
+    lineHeight: 1,
+    fontFamily: "var(--font-display)",
   },
   toolbar: {
     display: "flex",
     gap: "10px",
     flexWrap: "wrap",
-    marginBottom: "20px",
     alignItems: "center",
+    background: "var(--surface-1)",
+    border: "1px solid var(--border)",
+    borderRadius: "var(--r-lg)",
+    padding: "14px",
   },
-  input: {
-    padding: "9px 12px",
-    borderRadius: "8px",
-    border: "1px solid #cbd5e1",
-    fontSize: "14px",
-    outline: "none",
-    minWidth: "180px",
-  },
-  btnPrimary: {
-    padding: "9px 14px",
-    background: "#0ea5e9",
-    color: "#fff",
-    border: "none",
-    borderRadius: "8px",
-    cursor: "pointer",
-    fontWeight: 500,
-  },
-  btnSecondary: {
-    padding: "9px 14px",
-    background: "#e2e8f0",
-    color: "#334155",
-    border: "none",
-    borderRadius: "8px",
-    cursor: "pointer",
-    fontWeight: 500,
+  search: {
+    minWidth: "260px",
   },
   card: {
-    background: "#fff",
-    padding: "20px",
-    borderRadius: "12px",
-    boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
+    background: "var(--surface-1)",
+    border: "1px solid var(--border)",
+    borderRadius: "var(--r-lg)",
+    overflow: "hidden",
+  },
+  tableWrap: {
+    overflowX: "auto",
   },
   table: {
     width: "100%",
     borderCollapse: "collapse",
   },
-  thead: {
-    background: "#f8fafc",
-  },
   th: {
-    padding: "10px 14px",
+    padding: "12px 16px",
     textAlign: "left",
-    fontSize: "13px",
+    fontFamily: "var(--font-display)",
+    fontSize: "11px",
     fontWeight: 600,
-    color: "#475569",
-    borderBottom: "2px solid #e2e8f0",
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    color: "var(--text-muted)",
     whiteSpace: "nowrap",
   },
   row: {
-    borderBottom: "1px solid #f1f5f9",
+    borderBottom: "1px solid var(--border)",
   },
   td: {
-    padding: "10px 14px",
-    fontSize: "14px",
-    color: "#334155",
-    verticalAlign: "middle",
+    padding: "12px 16px",
+    fontSize: "13px",
+    color: "var(--text-secondary)",
+    whiteSpace: "nowrap",
+  },
+  mono: {
+    fontFamily: "var(--font-mono)",
+    fontSize: "12px",
   },
   badge: {
-    display: "inline-block",
+    display: "inline-flex",
+    alignItems: "center",
+    borderRadius: "var(--r-pill)",
     padding: "4px 10px",
-    borderRadius: "999px",
-    fontSize: "12px",
+    fontSize: "11px",
     fontWeight: 600,
   },
   badgeSuccess: {
-    background: "#dcfce7",
-    color: "#166534",
+    background: "var(--accent-dim)",
+    color: "var(--accent)",
+    border: "1px solid var(--accent-border)",
   },
   badgeDanger: {
-    background: "#fee2e2",
-    color: "#991b1b",
+    background: "var(--danger-dim)",
+    color: "var(--danger)",
+    border: "1px solid var(--danger-border)",
   },
-  error: {
-    color: "#dc2626",
-    marginBottom: "12px",
-    fontWeight: 500,
+  errorBox: {
+    margin: "12px",
+    padding: "10px 12px",
+    borderRadius: "var(--r-md)",
+    border: "1px solid var(--danger-border)",
+    background: "var(--danger-dim)",
+    color: "var(--danger)",
+    fontSize: "13px",
   },
-  muted: {
-    color: "#64748b",
+  empty: {
+    padding: "20px",
+    color: "var(--text-muted)",
+    fontSize: "13px",
   },
 };

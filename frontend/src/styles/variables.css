@@ -72,6 +72,19 @@
   --t-base  : 0.20s ease;
   --t-slow  : 0.35s ease;
 
+  /* ── Animation Timing (Standardized) ── */
+  --dur-ultra-fast: 80ms;
+  --dur-fast      : 120ms;
+  --dur-base      : 200ms;
+  --dur-slow      : 380ms;
+  --dur-xslow     : 600ms;
+
+  /* ── Animation Easing Functions ── */
+  --ease-out     : cubic-bezier(0.16, 1, 0.3, 1);        /* Landing animation */
+  --ease-spring  : cubic-bezier(0.34, 1.56, 0.64, 1);   /* Bouncy/springy */
+  --ease-in-out  : cubic-bezier(0.4, 0, 0.2, 1);        /* Smooth transition */
+  --ease-linear  : linear;                               /* Constant speed */
+
   /* ── Z-index scale ── */
   --z-sidebar : 100;
   --z-topbar  : 90;

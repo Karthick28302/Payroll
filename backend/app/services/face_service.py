@@ -1,7 +1,13 @@
 import os
-import face_recognition
 from backend.app.config import DATASET_PATH
 from backend.app.utils.face_utils import save_encodings
+
+try:
+    import face_recognition  # type: ignore
+    FACE_RECOGNITION_AVAILABLE = True
+except BaseException:
+    face_recognition = None
+    FACE_RECOGNITION_AVAILABLE = False
 
 
 def encode_faces():
@@ -12,6 +18,11 @@ def encode_faces():
     """
     known_encodings = []
     known_names = []
+
+    if not FACE_RECOGNITION_AVAILABLE:
+        print("[face_service] face_recognition dependency missing. Skipping encode step.")
+        save_encodings({"encodings": [], "names": []})
+        return
 
     if not os.path.exists(DATASET_PATH):
         print(f"[face_service] Dataset folder not found: {DATASET_PATH}")
@@ -42,3 +53,4 @@ def encode_faces():
 
     save_encodings({"encodings": known_encodings, "names": known_names})
     print(f"[face_service] Done — {len(known_names)} encodings saved")
+

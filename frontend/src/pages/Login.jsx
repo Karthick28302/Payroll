@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../services/api";
+import { ADMIN_TOKEN_KEY, ADMIN_USER_KEY } from "../utils/auth";
 
 const Login = () => {
   const [username,     setUsername]     = useState("");
@@ -19,7 +20,20 @@ const Login = () => {
     setLoading(true);
     setError("");
     try {
-      await API.post("/api/login", { username: username.trim(), password });
+      const response = await API.post("/api/login", { username: username.trim(), password });
+      const token = response?.data?.data?.token;
+      const admin = response?.data?.data?.admin;
+      if (!token) {
+        throw new Error("Missing auth token from server.");
+      }
+      localStorage.setItem(ADMIN_TOKEN_KEY, token);
+      localStorage.setItem(
+        ADMIN_USER_KEY,
+        JSON.stringify({
+          username: admin?.username || username.trim(),
+          role: admin?.role || "admin",
+        })
+      );
       localStorage.setItem("isAdmin", "true");
       navigate("/dashboard");
     } catch (err) {

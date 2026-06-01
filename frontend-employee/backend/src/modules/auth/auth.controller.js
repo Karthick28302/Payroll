@@ -1,4 +1,5 @@
-﻿const asyncHandler = require("../../utils/asyncHandler");
+const asyncHandler = require("../../utils/asyncHandler");
+const { getMyProfileService } = require("../employee/employee.service");
 const { loginEmployeeService } = require("./auth.service");
 
 const loginEmployee = asyncHandler(async (req, res) => {
@@ -8,10 +9,11 @@ const loginEmployee = asyncHandler(async (req, res) => {
 });
 
 const getCurrentEmployee = asyncHandler(async (req, res) => {
+  const profile = await getMyProfileService(req.user.id);
   res.status(200).json({
     status: "success",
     data: {
-      user: req.user,
+      user: profile,
     },
   });
 });

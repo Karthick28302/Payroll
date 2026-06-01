@@ -5,9 +5,22 @@ const { signToken } = require("../../utils/jwt");
 
 const findEmployeeByIdentifier = async (identifier) => {
   const query = `
-    SELECT id, employee_code, full_name, email, password_hash, role, status
-    FROM users
-    WHERE employee_code = $1 OR email = $1
+    SELECT
+      u.id,
+      u.employee_code,
+      u.full_name,
+      u.email,
+      u.password_hash,
+      u.role,
+      u.status,
+      ep.department,
+      ep.designation,
+      ep.join_date,
+      ep.phone,
+      ep.address
+    FROM users u
+    LEFT JOIN employee_profiles ep ON ep.user_id = u.id
+    WHERE u.employee_code = $1 OR u.email = $1
     LIMIT 1
   `;
 
@@ -55,6 +68,11 @@ const loginEmployeeService = async ({ identifier, password }) => {
       email: employee.email,
       role: employee.role,
       status: employee.status,
+      department: employee.department,
+      designation: employee.designation,
+      joinDate: employee.join_date,
+      phone: employee.phone,
+      address: employee.address,
     },
   };
 };

@@ -1,9 +1,10 @@
 from backend.app.database.db_connection import get_db_connection
-from backend.app.config import DB_CONFIG
+from backend.app.config import get_db_config
 
 
 def ensure_user_compensation_columns():
     """Ensure compensation columns exist in users table."""
+    db_config = get_db_config()
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
@@ -14,7 +15,7 @@ def ensure_user_compensation_columns():
           AND table_name = 'users'
           AND column_name IN ('monthly_salary', 'pf_percent', 'savings_percent')
         """,
-        (DB_CONFIG["database"],),
+        (db_config["database"],),
     )
     existing = {row[0] for row in cur.fetchall()}
 

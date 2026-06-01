@@ -35,6 +35,11 @@ test("login succeeds for active employee", async () => {
         password_hash: passwordHash,
         role: "employee",
         status: "active",
+        department: "IT",
+        designation: "Developer",
+        join_date: "2026-01-01",
+        phone: "9876543210",
+        address: "Chennai",
       },
     ],
   });
@@ -46,6 +51,8 @@ test("login succeeds for active employee", async () => {
     });
     assert.ok(result.token);
     assert.equal(result.employee.employeeCode, "EMP1001");
+    assert.equal(result.employee.department, "IT");
+    assert.equal(result.employee.designation, "Developer");
   } finally {
     db.query = originalQuery;
   }
@@ -87,6 +94,50 @@ test("profile fetch returns normalized object", async () => {
     assert.equal(result.department, "IT");
   } finally {
     db.query = originalQuery;
+  }
+});
+
+test("auth me returns full employee profile", async () => {
+  const originalQuery = db.query;
+  const { baseUrl, stop } = await startTestServer();
+  const employeeToken = signToken({
+    sub: 1,
+    role: "employee",
+    email: "employee@example.com",
+    employeeCode: "EMP1001",
+  });
+
+  db.query = async (text) => {
+    if (text.includes("FROM users u")) {
+      return {
+        rows: [
+          {
+            id: 1,
+            employee_code: "EMP1001",
+            full_name: "Demo Employee",
+            email: "employee@example.com",
+            role: "employee",
+            department: "IT",
+            designation: "Developer",
+            join_date: "2026-01-01",
+            phone: "9876543210",
+            address: "Chennai",
+          },
+        ],
+      };
+    }
+
+    return { rows: [] };
+  };
+
+  try {
+    const response = await callJson("GET", `${baseUrl}/api/v1/auth/me`, employeeToken);
+    assert.equal(response.status, 200);
+    assert.equal(response.body.data.user.department, "IT");
+    assert.equal(response.body.data.user.id, 1);
+  } finally {
+    db.query = originalQuery;
+    await stop();
   }
 });
 
